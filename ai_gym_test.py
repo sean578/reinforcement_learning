@@ -2,9 +2,10 @@ import gym
 import matplotlib.pyplot as plt
 import numpy as np
 np.set_printoptions(precision=1, linewidth=np.inf)
+from q_learning import QLearning
+from time import sleep
 
-env = gym.make('CartPole-v1')
-initial_observation = env.reset()
+env = gym.make('CartPole-v0')
 
 ob_dict = {
     'pos': 0,
@@ -13,108 +14,75 @@ ob_dict = {
     'p_vel': 3
 }
 
-PARAM_MIN, PARAM_MAX = -5.0, 5.0
-NUM_BINS = 100
-BIN_SIZE = (PARAM_MAX - PARAM_MIN) / NUM_BINS
-learning_rate = 0.7
-discount = 0.9
-EPISODES = 1000
+hyper = {
+    'discount': 1.0,
+    'num_bins': 30
+}
 
-epsilon = 1.0
-START_EPSILON_DECAYING = 1
-END_EPSILON_DECAYING = EPISODES//2
-epsilon_decay_value = epsilon/(END_EPSILON_DECAYING - START_EPSILON_DECAYING)
+num_poss_actions = 2
+episodes = 1000
 
+q_learning = QLearning(env, ob_dict, hyper, episodes, num_poss_actions)
+obs = q_learning.reset_state()  # Reset the environment and get the initial state
 
-def update_q_value(learning_rate, current_q, reward, discount, max_future_q):
-    new_q = (1 - learning_rate) * current_q + learning_rate * (reward + discount * max_future_q)
-    print('q, update:', current_q, new_q)
-    return new_q
-
-
-def get_bin_index(value, min_value, bin_size):
-    return int((value - min_value) // bin_size)
-
-
-def get_bin_value(index, min_value, bin_size):
-    return min_value + index * bin_size
-
-
-# Create & initialise a q value table
-q_table = np.random.uniform(low=0, high=10, size=(2, NUM_BINS, NUM_BINS))  # actions, pole angle, pole velocity
-print('q table initial\n', q_table)
-
-# Get the initial state
-action = 1
-ob_current, reward_current, done, _ = env.step(action)
-print('rewared_current', reward_current)
+action_to_maximise_q = q_learning.action_to_maximise_q(obs)  # Find optimal action
+action = q_learning.decide_on_action(action_to_maximise_q)  # Decide whether to use optimal or random action
+observation, reward_current, done = q_learning.perform_sim_step(action)  # env.step(action)  # Perform the first action
 
 num_steps_alive = 0
 num_alive = []
-for episode in range(EPISODES):
-    # print('episiode', episode)
+while q_learning.episode < q_learning.episodes:
 
-    if END_EPSILON_DECAYING >= episode >= START_EPSILON_DECAYING:
-        epsilon -= epsilon_decay_value
+    if not q_learning.episode % 100:
+        render = True
+    else:
+        render = False
 
+    q_learning.episode += 1
+    print('episode {0:}, epsilon {1:.2f}, lr {2:.2f}'.format(q_learning.episode, q_learning.epsilon, q_learning.lr))
+    q_learning.perform_epsilon_decay()
+    # q_learning.perform_lr_decay()
     num_steps_alive = 0
-    num_random = 0
 
     while not done:
 
-        # Find the action providing the maximum q value
-        # First get the q-table indicies for the current observation
-        ob_current_index_angle = get_bin_index(ob_current[ob_dict['angle']], PARAM_MIN, BIN_SIZE)
-        ob_current_index_p_vel = get_bin_index(ob_current[ob_dict['p_vel']], PARAM_MIN, BIN_SIZE)
+        if render:
+            q_learning.env.render()
+            np.save('./data/{}'.format(q_learning.episode), q_learning.q_table)
+            sleep(0.02)
 
-        # Look up in the q-table the action corresponding to the highest q-value given the current observation
-        # Instead of this, choose a random action with a probability 1-epsilon to aid exploration
-        if np.random.random() > epsilon:
-            action_for_max_q = np.argmax(q_table[:, ob_current_index_angle, ob_current_index_p_vel])
-            print('action_for_max_q', action_for_max_q)
-        else:
-            action_for_max_q = np.random.randint(0, 1)
+        current_q_value = q_learning.look_up_q_value(obs, action)  # Get current q value
 
-        # Play a step in the simulation with this optimal value to get a future observation
-        ob_future, reward_future, done, _ = env.step(action_for_max_q)
-        if done:
-            num_alive.append(num_steps_alive)
-            # print(num_steps_alive)
-            reward_future = -10
-            # break
-        else:
-            num_steps_alive += 1
-            reward_future = 1
+        action_for_max_q = q_learning.action_to_maximise_q(obs)  # Finds from current observation
+        action = q_learning.decide_on_action(action_for_max_q)  # Exploration or exploitation
 
-        ob_future_index_angle = get_bin_index(ob_future[ob_dict['angle']], PARAM_MIN, BIN_SIZE)
-        ob_future_index_p_vel = get_bin_index(ob_future[ob_dict['p_vel']], PARAM_MIN, BIN_SIZE)
+        # Play a step in the simulation with this optimal value to get a future observation (doesn't actually occur)
+        ob_future, reward, done = q_learning.perform_sim_step(action)
 
-        # Get max future q
-        max_future_q = np.max(q_table[:, ob_future_index_angle, ob_future_index_p_vel])
+        max_future_q = q_learning.get_max_q(ob_future)  # Get max future q
 
         # Update the table q value
-        future_q_value = update_q_value(learning_rate,
-                                     q_table[action_for_max_q, ob_current_index_angle, ob_current_index_p_vel],
-                                     reward_future,
-                                     discount,
-                                     max_future_q)
-        q_table[action, ob_current_index_angle, ob_current_index_p_vel] = future_q_value
-        # print('q table after {} steps\n'.format(i), q_table)
+        updated_q_value = q_learning.calc_new_q_value(current_q_value, reward, max_future_q)
+        q_learning.update_q_value(action, obs, updated_q_value)
 
-        ob_current = ob_future
-        reward_current = reward_future
-        action = action_for_max_q
+        # Make the new state (found using a random or optimal q value) the old state for the next iteration  TODO: Check this
+        obs = ob_future
 
-    env.reset()
-    ob_current, reward_current, done, _ = env.step(1)
+        num_steps_alive += 1
 
-    if not episode % 100000:
-        np.save('./data/{}'.format(episode), q_table)
+    num_alive.append(num_steps_alive)
 
-print(q_table)
-env.close()
-print(num_alive)
+    obs = q_learning.reset_state()  # Reset the environment and get the initial state
 
-plt.plot(num_alive)
+    action_to_maximise_q = q_learning.action_to_maximise_q(obs)  # Find optimal action  # TODO: Combine these two functions
+    action = q_learning.decide_on_action(action_to_maximise_q)  # Decide whether to use optimal or random action
+    observation, reward_current, done = q_learning.perform_sim_step(action)   # env.step(action)  # Perform the first action
+
+q_learning.env.close()
+# print(num_alive)
+
+plt.plot(num_alive, linewidth=0.05)
+plt.savefig('./data/learning.png')
 plt.show()
+
 
