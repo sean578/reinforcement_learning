@@ -1,5 +1,6 @@
 import numpy as np
 np.set_printoptions(precision=1, linewidth=np.inf)
+import math
 
 
 class QLearning:
@@ -12,35 +13,44 @@ class QLearning:
         self.episode = 0
         self.num_poss_actions = num_poss_actions
 
-        self.q_table = self.create_q_table(low=0, high=1)
+
 
         ############################################
         # TIDY UP THESE VARIABLES ##################
         ############################################
 
-        self.PARAM_MIN, self.PARAM_MAX = -5.0, 5.0
-        self.BIN_SIZE = (self.PARAM_MAX - self.PARAM_MIN) / self.hyper['num_bins']
+        self.PARAM_RANGE_VEL = list(zip(env.observation_space.low, env.observation_space.high))[2]
 
-        self.epsilon = 1.0
+        # self.PARAM_RANGE_VEL = [-2.5, 0.5]
+        self.PARAM_RANGE_ANGLE = [-math.radians(50), math.radians(50)]
+        self.BIN_SIZE_VEL = (self.PARAM_RANGE_VEL[1] - self.PARAM_RANGE_VEL[0]) / self.hyper['num_bins_vel']
+        self.BIN_SIZE_ANGLE = (self.PARAM_RANGE_ANGLE[1] - self.PARAM_RANGE_ANGLE[0]) / self.hyper['num_bins_angle']
+
+        self.epsilon = 0.5
         self.ep_decay_start = 1
         self.ep_decay_end = self.episodes // 2
         self.epsilon_decay_value = self.epsilon / (self.ep_decay_end - self.ep_decay_start)
 
-        self.lr = 0.05
+        self.lr = 0.5
         self.lr_decay_start = 1
-        self.lr_decay_end = self.episodes
+        self.lr_decay_end = self.episodes // 2
         self.lr_decay_value = self.lr / (self.lr_decay_end - self.lr_decay_start)
+
+        print(self.PARAM_RANGE_VEL, self.PARAM_RANGE_ANGLE)
+
+        self.q_table = self.create_q_table(low=0, high=1)
 
         ############################################
         ############################################
         ############################################
 
     def create_q_table(self, low, high):
-        # return np.random.uniform(low=low,
-        #                          high=high,
-        #                          size=(self.num_poss_actions, self.hyper['num_bins'], self.hyper['num_bins']))
+        # TODO: Choose better initialisation range?
+        # return np.random.uniform(low=10*self.PARAM_RANGE_ANGLE[0],
+        #                          high=10*self.PARAM_RANGE_ANGLE[1],
+        #                          size=(self.num_poss_actions, self.hyper['num_bins_angle'], self.hyper['num_bins_vel']))
 
-        return np.zeros((self.num_poss_actions, self.hyper['num_bins'], self.hyper['num_bins']))
+        return np.zeros((self.num_poss_actions, self.hyper['num_bins_angle'], self.hyper['num_bins_vel']))
 
     def reset_state(self):
         return self.env.reset()
@@ -48,7 +58,7 @@ class QLearning:
     def perform_sim_step(self, action):
         ob, reward, done, _ = self.env.step(action)
         if done:
-            reward = -1
+            reward = -10
             # print('reward', reward)
         else:
             reward = 1
@@ -59,15 +69,29 @@ class QLearning:
                 self.lr * (current_reward + self.hyper['discount'] * max_future_q)
         return new_q
 
-    def get_bin_index(self, value):
-        return int((value - self.PARAM_MIN) // self.BIN_SIZE)
+    def get_bin_index(self, value, angle):
+        if angle:
+            index = int((value - self.PARAM_RANGE_ANGLE[0]) // self.BIN_SIZE_ANGLE)
+        else:
+            index = int((value - self.PARAM_RANGE_VEL[0]) // self.BIN_SIZE_VEL)
 
-    def get_bin_value(self, index):
-        return self.PARAM_MIN + index * self.BIN_SIZE
+        if index < 0:
+            index = 0
+        if angle:
+            if index > self.hyper['num_bins_angle'] - 1:
+                index = self.hyper['num_bins_angle'] - 1
+        else:
+            if index > self.hyper['num_bins_vel'] - 1:
+                index = self.hyper['num_bins_vel'] - 1
+        return index
+
+    # def get_bin_value(self, index, angle):
+    #     if angle:
+    #         return self.PARAM_RANGE_ANGLE[0] + index * self.BIN_SIZE_ANGLE
 
     def get_indicies(self, obs):
-        index_angle = self.get_bin_index(obs[self.ob_dict['angle']])
-        index_p_vel = self.get_bin_index(obs[self.ob_dict['p_vel']])
+        index_angle = self.get_bin_index(obs[self.ob_dict['angle']], angle=True)
+        index_p_vel = self.get_bin_index(obs[self.ob_dict['p_vel']], angle=False)
         return index_angle, index_p_vel
 
     def look_up_q_value(self, obs, action):
@@ -89,13 +113,17 @@ class QLearning:
     def perform_epsilon_decay(self):
         if self.ep_decay_end >= self.episode >= self.ep_decay_start:
             self.epsilon -= self.epsilon_decay_value
+        if self.epsilon < 0:
+            self.epsilon = 0
 
     def perform_lr_decay(self):
         if self.lr_decay_end >= self.episode >= self.lr_decay_start:
             self.lr -= self.lr_decay_value
+        if self.lr < 0:
+            self.lr = 0
 
     def decide_on_action(self, action_for_max_q):
-        if np.random.random() > self.epsilon + 0.1:
+        if np.random.random() > self.epsilon:
             return action_for_max_q
         else:
             random_int = np.random.randint(0, 2)
