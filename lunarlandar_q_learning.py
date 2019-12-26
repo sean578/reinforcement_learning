@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 np.set_printoptions(precision=1, linewidth=np.inf)
 from q_learning import QLearning
-from time import sleep
 
 env = gym.make('LunarLander-v2')
 actions = (0, 1, 2, 3)
@@ -22,14 +21,12 @@ print('\nObservation ranges:')
 for ob in enumerate(env_ranges):
     print(ob[0], ob[1])
 
-# nb = 7
-# num_bins = [nb] * num_observations
 num_bins = [6, 6, 6, 6, 6, 6, 3, 3]
 num_pos_actions = len(actions)
 
 # hyperparams:
-discount = 0.99
-episodes = 1000
+discount = 1.0
+episodes = 100000
 
 epsilon = [0.5, 1.0, episodes]  # Epsilon start, start decay index, stop decay index
 lr = [0.5, 1.0, episodes]  # Learning rate start, start decay index, stop decay index
@@ -42,10 +39,11 @@ action_to_maximise_q = q_learning.action_to_maximise_q(obs)  # Find optimal acti
 action = q_learning.decide_on_action(action_to_maximise_q)  # Decide whether to use optimal or random action
 observation, reward_current, done = q_learning.perform_sim_step(action)  # env.step(action)  # Perform the first action
 
-NUM_TO_SHOW = 20
+NUM_EPOCHS = 1
+NUM_TO_SHOW = 100
 rewards = []
 
-for epoch in range(10):
+for epoch in range(NUM_EPOCHS):
 
     print('EPOCH', epoch)
 
@@ -59,12 +57,12 @@ for epoch in range(10):
 
         if not q_learning.episode % (episodes // NUM_TO_SHOW):
             render = True
-            print('episode, learning_rate, epsilon', q_learning.episode, q_learning.lr, q_learning.epsilon)
+            print('min, max q table values: {0:.1f}, {1:.1f}'.format(q_learning.q_table.min(), q_learning.q_table.max()))
+            print('episode, learning_rate, epsilon: {0:.0f}, {1:.2f}, {2:.2f}'.format(q_learning.episode, q_learning.lr, q_learning.epsilon))
         else:
             render = False
 
         q_learning.episode += 1
-        # print('episode {0:}, epsilon {1:.2f}, lr {2:.2f}'.format(q_learning.episode, q_learning.epsilon, q_learning.lr))
         q_learning.perform_epsilon_decay()
         q_learning.perform_lr_decay()
 

@@ -43,7 +43,6 @@ class QLearning:
         return new_q
 
     def get_bin_indicies(self, values):
-
         indicies = []
         for i, value in enumerate(values):
             bin_step = (self.env_ranges[i][1] - self.env_ranges[i][0]) / self.num_bins[i]
@@ -53,7 +52,6 @@ class QLearning:
             if index >= self.num_bins[i]:
                 index = self.num_bins[i] - 1
             indicies.append(int(index))
-        # print(indicies)
         return tuple(indicies)
 
     def look_up_q_value(self, obs, action):
