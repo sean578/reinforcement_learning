@@ -8,12 +8,12 @@ from time import sleep
 env = gym.make('LunarLander-v2')
 actions = (0, 1, 2, 3)
 env_ranges = list(zip(env.observation_space.low, env.observation_space.high))
-num_observations = len(env_ranges)  # Last two obs don't do anything
+num_observations = len(env_ranges)
 print('Ob space:\t\t', env.observation_space)
 print('Action space:\t', env.action_space)
 print('Reward range:\t', env.reward_range)
 
-bin_min, bin_max = -1, 1
+bin_min, bin_max = -0.7, 0.7
 
 for i in range(num_observations):
     env_ranges[i] = (bin_min, bin_max)
@@ -22,16 +22,16 @@ print('\nObservation ranges:')
 for ob in enumerate(env_ranges):
     print(ob[0], ob[1])
 
-# nb = 20
+# nb = 7
 # num_bins = [nb] * num_observations
-num_bins = [2, 2, 10, 10, 10, 10, 2, 2]
+num_bins = [6, 6, 6, 6, 6, 6, 3, 3]
 num_pos_actions = len(actions)
 
 # hyperparams:
-discount = 0.98
+discount = 0.99
 episodes = 1000
 
-epsilon = [1.0, 1.0, episodes]  # Epsilon start, start decay index, stop decay index
+epsilon = [0.5, 1.0, episodes]  # Epsilon start, start decay index, stop decay index
 lr = [0.5, 1.0, episodes]  # Learning rate start, start decay index, stop decay index
 
 q_learning = QLearning(env, num_bins, num_pos_actions, env_ranges, discount, episodes, epsilon, lr)
@@ -42,51 +42,57 @@ action_to_maximise_q = q_learning.action_to_maximise_q(obs)  # Find optimal acti
 action = q_learning.decide_on_action(action_to_maximise_q)  # Decide whether to use optimal or random action
 observation, reward_current, done = q_learning.perform_sim_step(action)  # env.step(action)  # Perform the first action
 
-NUM_TO_SHOW = 5
+NUM_TO_SHOW = 20
 rewards = []
 
-while q_learning.episode < q_learning.episodes:
+for epoch in range(10):
 
-    reward_sum = 0
+    print('EPOCH', epoch)
 
-    if not q_learning.episode % (episodes // NUM_TO_SHOW):
-        render = True
-        print('episode, learning_rate, epsilon', q_learning.episode, q_learning.lr, q_learning.epsilon)
-    else:
-        render = False
+    q_learning.episode = 0
+    q_learning.epsilon = epsilon[0]
+    q_learning.lr = lr[0]
 
-    q_learning.episode += 1
-    # print('episode {0:}, epsilon {1:.2f}, lr {2:.2f}'.format(q_learning.episode, q_learning.epsilon, q_learning.lr))
-    q_learning.perform_epsilon_decay()
-    q_learning.perform_lr_decay()
+    while q_learning.episode < q_learning.episodes:
 
-    while not done:
+        reward_sum = 0
 
-        action_to_maximise_q = q_learning.action_to_maximise_q(obs)
-        action = q_learning.decide_on_action(action_to_maximise_q)  # Decide whether to use optimal or random action
-        current_q_value = q_learning.look_up_q_value(obs, action)  # Get current q value
+        if not q_learning.episode % (episodes // NUM_TO_SHOW):
+            render = True
+            print('episode, learning_rate, epsilon', q_learning.episode, q_learning.lr, q_learning.epsilon)
+        else:
+            render = False
 
-        # Play a step in the simulation with this optimal value to get a future observation (doesn't actually occur)
-        ob_future, reward, done = q_learning.perform_sim_step(action)
-        reward_sum += reward
-        ob_future = ob_future
-        max_future_q = q_learning.get_max_q(ob_future)  # Get max future q
+        q_learning.episode += 1
+        # print('episode {0:}, epsilon {1:.2f}, lr {2:.2f}'.format(q_learning.episode, q_learning.epsilon, q_learning.lr))
+        q_learning.perform_epsilon_decay()
+        q_learning.perform_lr_decay()
 
-        # Update the table q value
-        updated_q_value = q_learning.calc_new_q_value(current_q_value, reward, max_future_q)
-        q_learning.update_q_value(action, obs, updated_q_value)
+        while not done:
 
-        # Make the new state (found using a random or optimal q value) the old state for the next iteration
-        obs = ob_future
+            action_to_maximise_q = q_learning.action_to_maximise_q(obs)
+            action = q_learning.decide_on_action(action_to_maximise_q)  # Decide whether to use optimal or random action
+            current_q_value = q_learning.look_up_q_value(obs, action)  # Get current q value
 
-        if render:
-            q_learning.env.render()
+            # Play a step in the simulation with this optimal value to get a future observation (doesn't actually occur)
+            ob_future, reward, done = q_learning.perform_sim_step(action)
+            reward_sum += reward
+            ob_future = ob_future
+            max_future_q = q_learning.get_max_q(ob_future)  # Get max future q
 
-    rewards.append(reward_sum)
-    if reward > -100:
-        print('final_reward', reward)
-    obs = q_learning.reset_state()  # Reset the environment and get the initial state
-    done = False
+            # Update the table q value
+            updated_q_value = q_learning.calc_new_q_value(current_q_value, reward, max_future_q)
+            q_learning.update_q_value(action, obs, updated_q_value)
+
+            # Make the new state (found using a random or optimal q value) the old state for the next iteration
+            obs = ob_future
+
+            if render:
+                q_learning.env.render()
+
+        rewards.append(reward_sum)
+        obs = q_learning.reset_state()  # Reset the environment and get the initial state
+        done = False
 
 q_learning.env.close()
 

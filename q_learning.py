@@ -27,6 +27,7 @@ class QLearning:
         self.q_table = self.create_q_table()
 
     def create_q_table(self):
+        # print(self.num_poss_actions)
         q_table = np.zeros((self.num_poss_actions, *self.num_bins))
         return q_table
 
@@ -42,15 +43,17 @@ class QLearning:
         return new_q
 
     def get_bin_indicies(self, values):
+
         indicies = []
         for i, value in enumerate(values):
-            indicies.append(int((value - self.env_ranges[i][0]) // self.num_bins[i]))
-
-            if indicies[i] < 0:
-                indicies[i] = 0
-            if indicies[i] >= self.num_bins[i]:
-                indicies[i] = self.num_bins[i] - 1
-
+            bin_step = (self.env_ranges[i][1] - self.env_ranges[i][0]) / self.num_bins[i]
+            index = (value - self.env_ranges[i][0]) / bin_step
+            if index < 0:
+                index = 0
+            if index >= self.num_bins[i]:
+                index = self.num_bins[i] - 1
+            indicies.append(int(index))
+        # print(indicies)
         return tuple(indicies)
 
     def look_up_q_value(self, obs, action):
