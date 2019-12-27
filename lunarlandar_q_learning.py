@@ -12,21 +12,29 @@ print('Ob space:\t\t', env.observation_space)
 print('Action space:\t', env.action_space)
 print('Reward range:\t', env.reward_range)
 
-bin_min, bin_max = -0.7, 0.7
+# bin_min, bin_max = -0.7, 0.7
+# for i in range(num_observations):
+#     env_ranges[i] = (bin_min, bin_max)
 
-for i in range(num_observations):
-    env_ranges[i] = (bin_min, bin_max)
+env_ranges = [(-0.5, 0.5),
+              (0, 1),
+              (-0.5, 0.5),
+              (-0.5, 0.5),
+              (-0.4, 0.4),
+              (-0.4, 0.4),
+              (-1, 1),
+              (-1, 1)]
 
 print('\nObservation ranges:')
 for ob in enumerate(env_ranges):
     print(ob[0], ob[1])
 
-num_bins = [6, 6, 6, 6, 6, 6, 3, 3]
+num_bins = [3, 20, 3, 6, 6, 6, 3, 3]
 num_pos_actions = len(actions)
 
 # hyperparams:
-discount = 1.0
-episodes = 100000
+discount = 0.99
+episodes = 10000
 
 epsilon = [0.5, 1.0, episodes]  # Epsilon start, start decay index, stop decay index
 lr = [0.5, 1.0, episodes]  # Learning rate start, start decay index, stop decay index
@@ -40,7 +48,7 @@ action = q_learning.decide_on_action(action_to_maximise_q)  # Decide whether to 
 observation, reward_current, done = q_learning.perform_sim_step(action)  # env.step(action)  # Perform the first action
 
 NUM_EPOCHS = 1
-NUM_TO_SHOW = 100
+NUM_TO_SHOW = 10
 rewards = []
 
 for epoch in range(NUM_EPOCHS):
@@ -57,6 +65,7 @@ for epoch in range(NUM_EPOCHS):
 
         if not q_learning.episode % (episodes // NUM_TO_SHOW):
             render = True
+            np.save('{}_{}'.format(epoch, q_learning.episode), q_learning.q_table)
             print('min, max q table values: {0:.1f}, {1:.1f}'.format(q_learning.q_table.min(), q_learning.q_table.max()))
             print('episode, learning_rate, epsilon: {0:.0f}, {1:.2f}, {2:.2f}'.format(q_learning.episode, q_learning.lr, q_learning.epsilon))
         else:
