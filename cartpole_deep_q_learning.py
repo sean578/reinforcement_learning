@@ -5,8 +5,22 @@ import os
 import time
 np.set_printoptions(precision=1, linewidth=np.inf)
 
+
+def update_stats(stats, episode_reward, max_qs, epsilon):
+    stats['reward'] = episode_reward
+    stats['max_qs'] = max_qs
+    stats['epsilon'] = epsilon
+    return stats
+
+
+def decay_epsilon(epsilon, epsilon_min, epsilon_decay):
+    if epsilon > epsilon_min:
+        epsilon *= epsilon_decay
+        epsilon = max(epsilon_min, epsilon)
+    return epsilon
+
+
 env = gym.make('CartPole-v0')
-actions = (0, 1)
 env_ranges = list(zip(env.observation_space.low, env.observation_space.high))
 num_observations = len(env_ranges)
 
@@ -17,7 +31,7 @@ print('\nObservation ranges:')
 for ob in enumerate(env_ranges):
     print(ob[0], ob[1])
 
-num_pos_actions = len(actions)
+num_pos_actions = 2
 print('num_pos_actions', num_pos_actions)
 
 root_log_dir = os.path.join(os.curdir, 'my_models')
@@ -25,14 +39,20 @@ run_id = time.strftime('run_%Y_%m_%d-%H_%M_%S')
 model_filepath = os.path.join(root_log_dir, run_id)
 
 # hyperparams:
-discount = 0.99
-episodes = 5000
+discount = 0.95
+episodes = 1000
 
 epsilon = 0.5  # Epsilon
 epsilon_min = 0.001
 epsilon_decay = 0.999
 lr = 0.001  # Learning rate
 reward_max = 0  # Keep track of max reward
+
+stats = {
+    'reward': None,
+    'max_qs': None,
+    'epsilon': None
+}
 
 agent = DeepQLearning(env=env,
                       num_observations=num_observations,
@@ -41,7 +61,6 @@ agent = DeepQLearning(env=env,
                       discount=discount)
 
 NUM_TO_SHOW = 100
-episode_rewards = []
 step = 1
 for episode in range(episodes):
 
@@ -85,17 +104,10 @@ for episode in range(episodes):
         current_state = future_state
         step += 1
 
-    episode_rewards.append(episode_reward)
+    epsilon = decay_epsilon(epsilon, epsilon_min, epsilon_decay)  # Decay epsilon
 
-    # Decay epsilon
-    if epsilon > epsilon_min:
-        epsilon *= epsilon_decay
-        epsilon = max(epsilon_min, epsilon)
-
-    stats = {
-        'reward': episode_reward,
-        'max_qs': max_qs
-    }
+    # Update stats we want to keep track of and update tensorboard log
+    stats = update_stats(stats, episode_reward, max_qs, epsilon)
     agent.tensorboard_callback.update_stats(stats)
 
     if stats['reward'] > reward_max:
@@ -103,7 +115,5 @@ for episode in range(episodes):
         print('maximum reward achieved', stats['reward'])
         agent.model.save(model_filepath)
 
-
-print(episode_rewards)
 agent.env.close()
 

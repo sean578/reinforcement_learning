@@ -7,11 +7,11 @@ from tensorflow.keras.optimizers import Adam
 import numpy as np
 import random
 
-REPLAY_MEMORY_SIZE = 5000
-REPLAY_MEMORY_SIZE_TO_START_TRAINING = 500
-MINIBATCH_SIZE = 64
+REPLAY_MEMORY_SIZE = 2000
+REPLAY_MEMORY_SIZE_TO_START_TRAINING = 50
+MINIBATCH_SIZE = 32
 
-UPDATE_TARGET_EVERY = 100  # Number of episodes
+UPDATE_TARGET_EVERY = 10  # Number of episodes
 
 
 class DeepQLearning:
@@ -43,11 +43,11 @@ class DeepQLearning:
         """ The model used to estimate Q-vales from the observable state """
 
         model = Sequential()
-        model.add(Dense(16, input_shape=(self.num_observations, )))
-        model.add(Activation('relu'))
-        model.add(Dense(16))
-        model.add(Activation('relu'))
-        model.add(Dense(self.num_pos_actions, activation='linear'))
+        model.add(Dense(32, input_shape=(self.num_observations, )))
+        model.add(Activation('elu'))
+        model.add(Dense(32))
+        model.add(Activation('elu'))
+        model.add(Dense(self.num_pos_actions))
         model.compile(loss='mse', optimizer=Adam(lr=self.lr), metrics=['accuracy'])
 
         return model

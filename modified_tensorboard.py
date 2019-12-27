@@ -4,7 +4,7 @@ https://pythonprogramming.net/deep-q-learning-dqn-reinforcement-learning-python-
 Updated for tensorflow 2
 """
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Get rid of some tensorflow warnings
 
 import time
 import tensorflow as tf
